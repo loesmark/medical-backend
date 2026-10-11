@@ -1,0 +1,736 @@
+# ───────────────────────────────────────────────────────────────
+#  MediCare Backend v3 — API Test Suite
+#  Format: VS Code REST Client (.http)
+#  Install: VS Code → Extensions → "REST Client" (by Huachao Mao)
+#  Usage:  Click "Send Request" above each request.
+#          Login requests auto-capture the JWT token via {{...response.body.$.data.token}}
+#          so all later authenticated requests just work.
+# ───────────────────────────────────────────────────────────────
+
+# ═════════════════════════════════════════════════════════════
+#  VARIABLES — edit these once, everything else follows
+# ═════════════════════════════════════════════════════════════
+
+@baseUrl = http://localhost:4000
+@apiVersion = v1
+@contentType = application/json
+
+# Admin credentials (set in .env → ADMIN_PHONE / ADMIN_PASSWORD)
+@adminPhone = 01000000000
+@adminPassword = ChangeMe!2025
+
+# Backup passcode (hash stored in .env → ADMIN_BACKUP_PASSCODE_HASH)
+@backupPasscode = MediCare2025!
+
+# A patient registers below as @patientRegister → captures patient_token + jwt automatically
+
+
+# ═════════════════════════════════════════════════════════════
+#  1. PUBLIC ENDPOINTS  (no auth)
+# ═════════════════════════════════════════════════════════════
+
+### Health check
+GET {{baseUrl}}/health
+Accept: {{contentType}}
+
+### Initial system setup (idempotent — only works if no admin exists; 409 otherwise)
+POST {{baseUrl}}/api/{{apiVersion}}/setup
+Content-Type: {{contentType}}
+
+{}
+
+
+# ═════════════════════════════════════════════════════════════
+#  2. AUTHENTICATION
+# ═════════════════════════════════════════════════════════════
+
+### Doctor (admin) login → captures the admin JWT
+# @name doctorLogin
+POST {{baseUrl}}/api/{{apiVersion}}/auth/doctor-login
+Content-Type: {{contentType}}
+
+{
+  "phone_number": "{{adminPhone}}",
+  "password": "{{adminPassword}}"
+}
+
+### Patient first-time registration — name + phone ONLY (Arabic names accepted)
+# Captures: patient_token + jwt + profileId
+# @name patientRegister
+POST {{baseUrl}}/api/{{apiVersion}}/auth/patient-register
+Content-Type: {{contentType}}
+
+{
+  "name": "أحمد محمد علي",
+  "phone_number": "0555111222"
+}
+
+### Patient login on a new device via the patient_token (uses the token captured above)
+# @name patientLogin
+POST {{baseUrl}}/api/{{apiVersion}}/auth/patient-login
+Content-Type: {{contentType}}
+
+{
+  "patient_token": "{{patientRegister.response.body.$.data.patient_token}}"
+}
+
+### Get current user (includes patient_token so the patient can view/share it)
+GET {{baseUrl}}/api/{{apiVersion}}/auth/me
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Doctor updates own profile (name + phone)
+PUT {{baseUrl}}/api/{{apiVersion}}/auth/profile
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "name": "Dr. Ahmed Admin",
+  "phone_number": "{{adminPhone}}"
+}
+
+### Doctor changes own password (requires current password)
+PUT {{baseUrl}}/api/{{apiVersion}}/auth/password
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "current_password": "{{adminPassword}}",
+  "new_password": "NewSecurePass2025!"
+}
+
+
+# ═════════════════════════════════════════════════════════════
+#  3. CATALOGS  (5 catalogs: diseases|surgeries|symptoms|medications|consultation_types)
+#  Patient: read-only list + get-by-id
+#  Admin: full CRUD
+# ═════════════════════════════════════════════════════════════
+
+### List available catalogs
+GET {{baseUrl}}/api/{{apiVersion}}/catalogs
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### List diseases (patient view)
+GET {{baseUrl}}/api/{{apiVersion}}/catalogs/diseases
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### List symptoms (includes is_critical flag)
+GET {{baseUrl}}/api/{{apiVersion}}/catalogs/symptoms
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### List medications (brand + generic)
+GET {{baseUrl}}/api/{{apiVersion}}/catalogs/medications
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### List consultation types (optionally filter by category: ?category=immediate|regular)
+GET {{baseUrl}}/api/{{apiVersion}}/catalogs/consultation_types?category=immediate
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Admin: create a disease
+# @name createDisease
+POST {{baseUrl}}/api/{{apiVersion}}/catalogs/diseases
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "name": "hypertension", "category": "cardiac" }
+
+### Admin: create a critical symptom (is_critical → auto-alert when patient selects it)
+# @name createSymptom
+POST {{baseUrl}}/api/{{apiVersion}}/catalogs/symptoms
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "name": "chest pain", "category": "cardiac", "is_critical": true }
+
+### Admin: create a medication (brand + generic)
+# @name createMedication
+POST {{baseUrl}}/api/{{apiVersion}}/catalogs/medications
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "brand_name": "Plavix", "generic_name": "Clopidogrel", "form": "tablet", "category": "cardiac" }
+
+### Admin: create a consultation type (category: immediate|regular)
+POST {{baseUrl}}/api/{{apiVersion}}/catalogs/consultation_types
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "name": "medication adjustment", "category": "regular" }
+
+### Admin: update a catalog item
+PUT {{baseUrl}}/api/{{apiVersion}}/catalogs/diseases/{{createDisease.response.body.$.data.id}}
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "name": "hypertension (updated)", "category": "cardiovascular" }
+
+### Admin: delete a catalog item
+DELETE {{baseUrl}}/api/{{apiVersion}}/catalogs/diseases/{{createDisease.response.body.$.data.id}}
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  4. PATIENT PROFILE  (complete + update + version history)
+#  First-time completion REQUIRES birth_date + smoking_status.
+#  Subsequent updates don't re-require them.
+# ═════════════════════════════════════════════════════════════
+
+### Get current profile (includes diseases + surgeries + medications selections)
+GET {{baseUrl}}/api/{{apiVersion}}/patient/profile
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Complete/update profile — transactional, creates a version snapshot
+# diseases[] + surgeries[] + medications[] REPLACE the previous selections.
+# Each selection: {disease_id|surgery_id|medication_id, custom_name?, dose?, frequency?, schedule_times?, instructions?}
+PUT {{baseUrl}}/api/{{apiVersion}}/patient/profile
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{
+  "birth_date": "1980-05-15",
+  "smoking_status": "former",
+  "additional_info": "حساسية من البنسلين",
+  "diseases": [
+    { "disease_id": "{{createDisease.response.body.$.data.id}}" },
+    { "custom_name": "متلازمة غير مدرجة" }
+  ],
+  "surgeries": [
+    { "custom_name": "عملية قسطرة سابقة" }
+  ],
+  "medications": [
+    {
+      "medication_id": "{{createMedication.response.body.$.data.id}}",
+      "dose": "75mg",
+      "frequency": "مرة يومياً",
+      "schedule_times": ["08:30", "21:00"],
+      "instructions": "يؤخذ مع الأكل"
+    }
+  ]
+}
+
+### List profile version history (snapshots)
+GET {{baseUrl}}/api/{{apiVersion}}/patient/profile/versions
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  5. HEALTH RECORDS  (vitals + optional symptoms + attachments)
+#  Backend evaluates thresholds on submit → may generate alerts.
+# ═════════════════════════════════════════════════════════════
+
+### Add a health record (JSON-only — no files)
+# bp_systolic + bp_diastolic replace the old "blood_pressure" text field.
+# symptoms[] optional: {symptom_id, custom_name}
+# Returns: triggered_alerts[] if any thresholds were crossed.
+# @name addRecord
+POST {{baseUrl}}/api/{{apiVersion}}/patient/records
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{
+  "bp_systolic": 145,
+  "bp_diastolic": 95,
+  "heart_rate": 88,
+  "current_medications": "snapshot optional",
+  "notes": "قمت بالقياس بعد الرياضة",
+  "symptoms": [
+    { "symptom_id": "{{createSymptom.response.body.$.data.id}}" }
+  ]
+}
+
+### Add a health record WITH file uploads (multipart)
+# Replace ./test-image.jpg with a real file path.
+POST {{baseUrl}}/api/{{apiVersion}}/patient/records
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="bp_systolic"
+
+130
+------Boundary
+Content-Disposition: form-data; name="bp_diastolic"
+
+85
+------Boundary
+Content-Disposition: form-data; name="heart_rate"
+
+72
+------Boundary
+Content-Disposition: form-data; name="notes"
+
+Post-workout reading
+------Boundary
+Content-Disposition: form-data; name="files"; filename="ecg.jpg"
+Content-Type: image/jpeg
+
+< ./test-image.jpg
+------Boundary--
+
+### List own health records (paginated)
+GET {{baseUrl}}/api/{{apiVersion}}/patient/records?page=1&limit=20
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  6. SYMPTOM LOGS  (symptoms WITHOUT a measurement — when patient can't measure)
+#  Critical symptoms trigger an immediate alert.
+# ═════════════════════════════════════════════════════════════
+
+### Add a symptom log (no BP/HR — patient felt something but couldn't measure)
+POST {{baseUrl}}/api/{{apiVersion}}/patient/symptom-logs
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{
+  "symptoms": [
+    { "symptom_id": "{{createSymptom.response.body.$.data.id}}" }
+  ],
+  "custom_text": "أشعر بدوخة شديدة منذ ساعة، لا أستطيع قياس ضغطي"
+}
+
+### List own symptom logs
+GET {{baseUrl}}/api/{{apiVersion}}/patient/symptom-logs?page=1&limit=20
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  7. PATIENT DOCUMENTS  (ECG / Echo / lab reports — append-only)
+# ═════════════════════════════════════════════════════════════
+
+### Upload a medical document (multipart)
+# type: ecg|echo|lab|other
+POST {{baseUrl}}/api/{{apiVersion}}/patient/documents
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="type"
+
+ecg
+------Boundary
+Content-Disposition: form-data; name="title"
+
+ECG at City Hospital
+------Boundary
+Content-Disposition: form-data; name="taken_at"
+
+2025-01-10
+------Boundary
+Content-Disposition: form-data; name="files"; filename="ecg-report.pdf"
+Content-Type: application/pdf
+
+< ./ecg-report.pdf
+------Boundary--
+
+### List own documents
+GET {{baseUrl}}/api/{{apiVersion}}/patient/documents?page=1&limit=20
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  8. CONSULTATIONS  (immediate → WhatsApp; regular → doctor responds in-app)
+#  Backend auto-attaches context: latest reading + freshness + latest symptoms.
+#  Rate limit: 3 immediate/day/patient.
+# ═════════════════════════════════════════════════════════════
+
+### Request an IMMEDIATE consultation → sent to doctor's WhatsApp + context attached
+# @name createConsultation
+POST {{baseUrl}}/api/{{apiVersion}}/patient/consultations
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{
+  "category": "immediate",
+  "custom_type": "ألم صدري حاد",
+  "reason": "أشعر بألم صدري شديد منذ ساعة"
+}
+
+### Request a REGULAR consultation → stored, doctor responds via the admin dashboard
+POST {{baseUrl}}/api/{{apiVersion}}/patient/consultations
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{
+  "category": "regular",
+  "custom_type": "تعديل دواء",
+  "reason": "أرغب في مراجعة جرعة كونكور"
+}
+
+### List my consultations + doctor responses
+GET {{baseUrl}}/api/{{apiVersion}}/patient/consultations?page=1&limit=20
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Get a specific consultation (mine)
+GET {{baseUrl}}/api/{{apiVersion}}/patient/consultations/{{createConsultation.response.body.$.data.consultation_id}}
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  9. APPOINTMENTS  (book a slot within doctor's working hours)
+# ═════════════════════════════════════════════════════════════
+
+### Get doctor's weekly working hours + current availability status
+GET {{baseUrl}}/api/{{apiVersion}}/patient/working-hours
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Get available slots for a date (working hours − already booked)
+GET {{baseUrl}}/api/{{apiVersion}}/patient/available-slots?date=2025-12-15
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Request an appointment (status: requested → waits for doctor confirmation)
+# @name requestAppointment
+POST {{baseUrl}}/api/{{apiVersion}}/patient/appointments
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{
+  "scheduled_date": "2025-12-15",
+  "scheduled_time": "10:00",
+  "notes": "متابعة نتائج التحاليل"
+}
+
+### List my appointments
+GET {{baseUrl}}/api/{{apiVersion}}/patient/appointments?page=1&limit=20
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### Cancel my appointment (only if status=requested)
+DELETE {{baseUrl}}/api/{{apiVersion}}/patient/appointments/{{requestAppointment.response.body.$.data.appointment_id}}
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  10. TREATMENT PLAN  (patient read-only view)
+# ═════════════════════════════════════════════════════════════
+
+### Get my current treatment plan (latest version)
+GET {{baseUrl}}/api/{{apiVersion}}/patient/treatment-plan
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### List treatment plan version history
+GET {{baseUrl}}/api/{{apiVersion}}/patient/treatment-plan/versions
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  11. ADMIN — DASHBOARD METRICS & RECENT CASES
+# ═════════════════════════════════════════════════════════════
+
+### Server metrics snapshot
+GET {{baseUrl}}/api/{{apiVersion}}/admin/metrics
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Recent cases — latest records across ALL patients
+GET {{baseUrl}}/api/{{apiVersion}}/admin/recent-records?page=1&limit=20
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  12. ADMIN — PATIENT MANAGEMENT
+# ═════════════════════════════════════════════════════════════
+
+### List patients (paginated + searchable)
+# @name listPatients
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients?page=1&limit=10&search=
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Get a patient's full detail (profile + diseases + surgeries + medications)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Get a patient's medical summary (latest BP/HR + trends + totals)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/summary
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Get a patient's health records
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/records?page=1&limit=20
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Get a patient's documents (ECG/Echo)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/documents
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Get a patient's consultations
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/consultations
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Get a patient's appointments
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/appointments
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Change a user's role (admin ⇄ patient)
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/users/{{patientRegister.response.body.$.data.user.id}}/role
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "role": "patient" }
+
+### Suspend / activate a user
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/users/{{patientRegister.response.body.$.data.user.id}}/status
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "status": "suspended" }
+
+### Delete a user (cascade)
+DELETE {{baseUrl}}/api/{{apiVersion}}/admin/users/{{patientRegister.response.body.$.data.user.id}}
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  13. ADMIN — TREATMENT PLANS  (create + version history)
+# ═════════════════════════════════════════════════════════════
+
+### Create/update a patient's treatment plan (creates a version snapshot)
+POST {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/treatment-plan
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "recommended_medications": [
+    { "medication_id": "{{createMedication.response.body.$.data.id}}", "dose": "75mg", "reason": "مضاد للصفيحات" }
+  ],
+  "instructions": "تجنب الملح الزائد، مارس رياضة خفيفة 30 دقيقة يومياً",
+  "follow_up_dates": ["2025-12-20", "2026-01-05"],
+  "clinical_notes": "المريض يستجيب جيداً للعلاج الحالي"
+}
+
+### Get a patient's current treatment plan
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/treatment-plan
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### List a patient's treatment plan version history
+GET {{baseUrl}}/api/{{apiVersion}}/admin/patients/{{patientRegister.response.body.$.data.user.id}}/treatment-plan/versions
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  14. ADMIN — CONSULTATIONS  (respond to regular consultations)
+# ═════════════════════════════════════════════════════════════
+
+### List all consultations (filter: ?status=pending|responded|closed)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/consultations?status=pending
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Respond to a regular consultation (structured response)
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/consultations/{{createConsultation.response.body.$.data.consultation_id}}/respond
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "response_text": "زد جرعة كونكور إلى 10mg صباحاً، وأعد القياس بعد يومين",
+  "recommended_action": "increase_concor_dose",
+  "follow_up_date": "2025-12-20"
+}
+
+
+# ═════════════════════════════════════════════════════════════
+#  15. ADMIN — APPOINTMENTS  (confirm / cancel)
+# ═════════════════════════════════════════════════════════════
+
+### List all appointments (filter: ?status=&date=)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/appointments?status=requested
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Confirm an appointment (generates whatsapp_link)
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/appointments/{{requestAppointment.response.body.$.data.appointment_id}}/confirm
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Cancel an appointment
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/appointments/{{requestAppointment.response.body.$.data.appointment_id}}/cancel
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  16. ADMIN — ALERT THRESHOLDS  (CRUD)
+# ═════════════════════════════════════════════════════════════
+
+### List all thresholds
+GET {{baseUrl}}/api/{{apiVersion}}/admin/thresholds
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Create a threshold (bp_systolic: warning=130, critical=140)
+# @name createThreshold
+POST {{baseUrl}}/api/{{apiVersion}}/admin/thresholds
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "parameter_name": "bp_systolic",
+  "warning_value": 130,
+  "critical_value": 140,
+  "operator": ">"
+}
+
+### Update a threshold
+PUT {{baseUrl}}/api/{{apiVersion}}/admin/thresholds/{{createThreshold.response.body.$.data.id}}
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "parameter_name": "bp_systolic",
+  "warning_value": 135,
+  "critical_value": 145,
+  "operator": ">"
+}
+
+### Delete a threshold
+DELETE {{baseUrl}}/api/{{apiVersion}}/admin/thresholds/{{createThreshold.response.body.$.data.id}}
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  17. ADMIN — ALERTS  (generated when thresholds/symptoms trigger)
+# ═════════════════════════════════════════════════════════════
+
+### Unread alert count (for the notification bell badge)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/alerts/unread-count
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### List alerts (filter: ?severity=warning|critical&status=unread|read|resolved)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/alerts?severity=critical&status=unread&page=1&limit=50
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Mark an alert as read
+# Replace 1 with a real alert id from the list above
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/alerts/1/read
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Mark an alert as resolved
+PATCH {{baseUrl}}/api/{{apiVersion}}/admin/alerts/1/resolve
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  18. ADMIN — DOCTOR WORKING HOURS + AVAILABILITY STATUS
+# ═════════════════════════════════════════════════════════════
+
+### Get weekly working hours
+GET {{baseUrl}}/api/{{apiVersion}}/admin/working-hours
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Upsert working hours for a day (0=Sun..6=Sat)
+PUT {{baseUrl}}/api/{{apiVersion}}/admin/working-hours
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "day_of_week": 1,
+  "start_time": "09:00",
+  "end_time": "17:00",
+  "is_active": true
+}
+
+### Get current availability status (active|off_today|after_hours_emergency)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/availability-status
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Set availability status
+PUT {{baseUrl}}/api/{{apiVersion}}/admin/availability-status
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "status": "active" }
+
+
+# ═════════════════════════════════════════════════════════════
+#  19. ADMIN — SETTINGS + TELEGRAM + BACKUP  (unchanged from v2)
+# ═════════════════════════════════════════════════════════════
+
+### Get current settings
+GET {{baseUrl}}/api/{{apiVersion}}/admin/settings
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Update settings (telegram + whatsapp)
+PUT {{baseUrl}}/api/{{apiVersion}}/admin/settings
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{
+  "telegram_bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+  "telegram_chat_id": "-1001234567890",
+  "doctor_whatsapp": "201000000000"
+}
+
+### Test Telegram connection
+POST {{baseUrl}}/api/{{apiVersion}}/admin/settings/test-telegram
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz", "chat_id": "-1001234567890" }
+
+### Backup service info
+GET {{baseUrl}}/api/{{apiVersion}}/admin/backup-db/info
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Download DB snapshot (WRONG passcode → 403 + audit)
+POST {{baseUrl}}/api/{{apiVersion}}/admin/backup-db
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "passcode": "wrong-passcode" }
+
+### Download DB snapshot (CORRECT passcode → binary .db file)
+POST {{baseUrl}}/api/{{apiVersion}}/admin/backup-db
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+Content-Type: {{contentType}}
+
+{ "passcode": "{{backupPasscode}}" }
+
+### Retrieve a patient-uploaded file/image from Telegram (proxy)
+# The fileId comes from a health record's attachments[].telegram_file_id.
+GET {{baseUrl}}/api/{{apiVersion}}/admin/telegram-file/FAKE_FILE_ID_REPLACE_WITH_REAL_ONE
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  20. ADMIN — LOGS & AUDIT TRAIL  (unchanged)
+# ═════════════════════════════════════════════════════════════
+
+### Recent API request logs
+GET {{baseUrl}}/api/{{apiVersion}}/admin/logs?page=1&limit=50
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### HTTP status breakdown
+GET {{baseUrl}}/api/{{apiVersion}}/admin/logs/status-breakdown
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Top endpoints
+GET {{baseUrl}}/api/{{apiVersion}}/admin/logs/top-endpoints
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### Audit log (filter: ?action=BACKUP_DOWNLOAD_SUCCESS)
+GET {{baseUrl}}/api/{{apiVersion}}/admin/audit-logs?page=1&limit=50&action=BACKUP_DOWNLOAD_SUCCESS
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+
+# ═════════════════════════════════════════════════════════════
+#  21. ERROR HANDLING EXAMPLES
+# ═════════════════════════════════════════════════════════════
+
+### 401 — missing token
+GET {{baseUrl}}/api/{{apiVersion}}/admin/metrics
+
+### 403 — patient tries admin route
+GET {{baseUrl}}/api/{{apiVersion}}/admin/metrics
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+
+### 404 — unknown route
+GET {{baseUrl}}/api/{{apiVersion}}/nonexistent
+Authorization: Bearer {{doctorLogin.response.body.$.data.token}}
+
+### 422 — validation error (name too short / missing fields on first profile completion)
+PUT {{baseUrl}}/api/{{apiVersion}}/patient/profile
+Authorization: Bearer {{patientRegister.response.body.$.data.jwt}}
+Content-Type: {{contentType}}
+
+{ "smoking_status": "never" }
+
+### 409 — duplicate phone on register
+POST {{baseUrl}}/api/{{apiVersion}}/auth/patient-register
+Content-Type: {{contentType}}
+
+{ "name": "Duplicate", "phone_number": "0555111222" }
+
+### 401 — invalid token
+GET {{baseUrl}}/api/{{apiVersion}}/auth/me
+Authorization: Bearer not.a.real.token

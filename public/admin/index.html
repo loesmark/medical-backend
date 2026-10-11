@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediCare Admin Dashboard</title>
+  <meta name="description" content="MediCare Admin Dashboard — manage patients, alerts, consultations, appointments, treatment plans, catalogs, thresholds, working hours, and backend settings." />
+
+  <!--
+    Auth guard: this runs BEFORE the body parses. If the JWT is missing,
+    bounce to login.html so no dashboard DOM is ever rendered unauthenticated.
+  -->
+  <script>
+    (function () {
+      try {
+        var token = localStorage.getItem('medicare_admin_token');
+        if (!token) {
+          window.location.replace('login.html');
+          // Stop the parser by writing a no-op body — the redirect above will fire ASAP.
+          document.documentElement.classList.add('auth-redirect');
+        }
+      } catch (_) {
+        window.location.replace('login.html');
+      }
+    })();
+  </script>
+
+  <!-- Tailwind CSS via CDN (no build step) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#0C899F', 50: '#E6F7FA', 100: '#C2EBF0', 200: '#7FDCE3',
+              300: '#33D4DB', 400: '#00C2CB', 500: '#0C899F', 600: '#0A7A8E',
+              700: '#086B7D', 800: '#065A69', 900: '#04495A',
+              accent: '#00C2CB', accent2: '#33D4DB'
+            },
+            ink: {
+              bg: '#0D131F', surface: '#161C28', field: '#080E1A',
+              border: '#1F2937', text: '#E5E9F0', muted: '#8B97A8',
+              faint: '#5A6678', deep: '#080D14'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'Inter', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          keyframes: {
+            'fade-in':       { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            'fade-in-up':    { '0%': { transform: 'translateY(8px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+            'scale-in':      { '0%': { transform: 'scale(0.96)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
+            'slide-in-right':{'0%': { transform: 'translateX(120%)', opacity: '0' }, '100%': { transform: 'translateX(0)', opacity: '1' } },
+            'slide-out-right':{'0%': { opacity: '1', transform: 'translateX(0)' }, '100%': { opacity: '0', transform: 'translateX(120%)' } },
+            'shimmer':       { '100%': { transform: 'translateX(100%)' } },
+            'spin':          { 'from': { transform: 'rotate(0deg)' }, 'to': { transform: 'rotate(360deg)' } }
+          },
+          animation: {
+            'fade-in': 'fade-in 0.2s ease-out',
+            'fade-in-up': 'fade-in-up 0.25s ease-out',
+            'scale-in': 'scale-in 0.2s ease-out',
+            'slide-in-right': 'slide-in-right 0.3s ease-out',
+            'slide-out-right': 'slide-out-right 0.25s ease-in forwards',
+            'shimmer': 'shimmer 1.6s infinite',
+            'spin': 'spin 0.8s linear infinite'
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- Google Font: Inter + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body class="bg-ink-bg text-ink-text antialiased min-h-screen auth-redirect:overflow-hidden auth-redirect:opacity-0">
+
+  <!-- App shell: sticky header (64px) + sidebar (256px) + main -->
+  <div class="min-h-screen flex flex-col">
+
+    <!-- ──────────────── Header (64px sticky) ──────────────── -->
+    <header class="sticky top-0 z-30 h-16 bg-ink-surface/95 backdrop-blur border-b border-white/8 flex items-center gap-3 px-4 lg:px-6">
+
+      <!-- Mobile sidebar toggle -->
+      <button
+        id="sidebar-toggle"
+        type="button"
+        aria-label="Open navigation"
+        aria-expanded="false"
+        aria-controls="app-sidebar"
+        class="lg:hidden p-2 rounded-md text-ink-muted hover:text-white hover:bg-white/5 transition focus:outline-none focus:ring-2 focus:ring-brand"
+      >
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+
+      <!-- Logo (mobile) -->
+      <div class="lg:hidden flex items-center gap-2 mr-1">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand to-brand-accent flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/><path d="M3.5 9h3l1.5-3 3 6 1.5-3h3.5"/></svg>
+        </div>
+      </div>
+
+      <!-- Page title + breadcrumb -->
+      <div class="flex-1 min-w-0">
+        <h1 id="page-title" class="text-base font-semibold text-white truncate">Dashboard</h1>
+        <nav id="breadcrumb" class="hidden sm:flex items-center text-xs text-ink-faint gap-1.5" aria-label="Breadcrumb">
+          <span>Home</span>
+          <span aria-hidden="true">/</span>
+          <span class="text-ink-muted">Dashboard</span>
+        </nav>
+      </div>
+
+      <!-- Global search (desktop) -->
+      <div class="hidden md:flex items-center relative w-72">
+        <svg class="absolute left-2.5 w-4 h-4 text-ink-faint pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input
+          id="global-search"
+          type="search"
+          placeholder="Search patients…"
+          aria-label="Global search"
+          accesskey="k"
+          class="w-full pl-9 pr-12 py-2 bg-ink-field border border-white/10 rounded-lg text-sm text-white placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+        />
+        <kbd class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-ink-faint border border-white/10 rounded px-1.5 py-0.5 pointer-events-none">⌘K</kbd>
+      </div>
+
+      <!-- Mode toggle (segmented control) -->
+      <div id="mode-toggle" class="inline-flex items-center bg-ink-field border border-white/10 rounded-lg p-1 text-xs font-medium" role="group" aria-label="View mode">
+        <button id="mode-clinical" type="button" data-mode="clinical" aria-pressed="true" class="mode-seg is-active px-2.5 py-1.5 rounded-md transition flex items-center gap-1.5">
+          <span aria-hidden="true">🩺</span><span>Clinical</span>
+        </button>
+        <button id="mode-technical" type="button" data-mode="technical" aria-pressed="false" class="mode-seg px-2.5 py-1.5 rounded-md transition flex items-center gap-1.5">
+          <span aria-hidden="true">⚙️</span><span>Technical</span>
+        </button>
+      </div>
+
+      <!-- Notification bell -->
+      <button
+        id="notif-bell"
+        type="button"
+        aria-label="Alerts"
+        class="relative p-2 rounded-md text-ink-muted hover:text-white hover:bg-white/5 transition focus:outline-none focus:ring-2 focus:ring-brand"
+      >
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="notif-dot" class="hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-ink-surface"></span>
+        <span id="notif-count" class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold flex items-center justify-center ring-2 ring-ink-surface"></span>
+      </button>
+
+      <!-- User chip + dropdown -->
+      <div class="relative" id="user-chip-wrap">
+        <button
+          id="user-chip"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="user-menu"
+          class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/5 transition focus:outline-none focus:ring-2 focus:ring-brand"
+        >
+          <span id="user-avatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-brand-accent flex items-center justify-center text-xs font-bold text-white">DR</span>
+          <span id="user-name" class="hidden md:block text-sm text-white font-medium max-w-[140px] truncate">Doctor</span>
+          <svg class="w-3.5 h-3.5 text-ink-faint" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div
+          id="user-menu"
+          role="menu"
+          aria-label="User menu"
+          class="hidden absolute right-0 mt-2 w-56 bg-ink-surface border border-white/10 rounded-xl shadow-2xl shadow-black/40 py-1.5 z-40"
+        >
+          <div class="px-3 py-2 border-b border-white/8 mb-1.5">
+            <p class="text-sm font-medium text-white truncate" id="user-menu-name">Doctor</p>
+            <p class="text-xs text-ink-faint truncate" id="user-menu-phone">—</p>
+          </div>
+          <button data-user-action="profile" role="menuitem" class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-ink-text hover:bg-white/5 transition">
+            <svg class="w-4 h-4 text-ink-muted" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Profile
+          </button>
+          <button data-user-action="password" role="menuitem" class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-ink-text hover:bg-white/5 transition">
+            <svg class="w-4 h-4 text-ink-muted" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Change Password
+          </button>
+          <div class="border-t border-white/8 my-1.5"></div>
+          <button data-user-action="logout" role="menuitem" class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 transition">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Logout
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ──────────────── Body: sidebar + main ──────────────── -->
+    <div class="flex-1 flex">
+
+      <!-- Sidebar overlay (mobile) -->
+      <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 hidden lg:hidden" aria-hidden="true"></div>
+
+      <!-- Sidebar (256px) -->
+      <aside
+        id="app-sidebar"
+        class="fixed lg:sticky top-16 lg:top-16 z-30 lg:z-10 w-64 h-[calc(100vh-4rem)] bg-ink-surface border-r border-white/8 flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-200"
+        aria-label="Main navigation"
+      >
+        <nav id="sidebar-nav" class="flex-1 overflow-y-auto py-4 px-3 space-y-1" aria-label="Sections"></nav>
+
+        <!-- Sidebar footer -->
+        <div class="px-3 py-3 border-t border-white/8 space-y-2">
+          <div id="backend-status" class="flex items-center gap-2 text-xs text-ink-muted px-2 py-1.5">
+            <span id="backend-dot" class="w-2 h-2 rounded-full bg-ink-faint"></span>
+            <span id="backend-status-text">Checking…</span>
+          </div>
+          <button id="logout-btn" type="button" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-rose-300 hover:bg-rose-500/10 transition focus:outline-none focus:ring-2 focus:ring-rose-500">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main content area -->
+      <main id="main-content" class="flex-1 min-w-0 p-4 lg:p-6 overflow-x-hidden" aria-live="polite">
+
+        <!-- Loading placeholder while dashboard.js boots the first view -->
+        <div id="boot-placeholder" class="flex items-center justify-center min-h-[60vh]">
+          <div class="flex flex-col items-center gap-3 text-ink-muted">
+            <svg class="w-8 h-8 animate-spin text-brand" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <p class="text-sm">Loading dashboard…</p>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ──────────────── Modal root (shared) ──────────────── -->
+  <div id="modal-root" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Modal">
+    <div id="modal-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div id="modal-card" class="relative w-full max-w-lg bg-ink-surface border border-white/10 rounded-2xl shadow-2xl shadow-black/50 max-h-[92vh] flex flex-col animate-scale-in">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-5 py-4 border-b border-white/8">
+        <h3 id="modal-title" class="text-base font-semibold text-white"></h3>
+        <button id="modal-close" type="button" aria-label="Close" class="p-1.5 rounded-md text-ink-muted hover:text-white hover:bg-white/5 transition focus:outline-none focus:ring-2 focus:ring-brand">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <!-- Body -->
+      <div id="modal-body" class="px-5 py-4 overflow-y-auto flex-1"></div>
+      <!-- Footer (optional, populated by JS) -->
+      <div id="modal-footer" class="hidden px-5 py-3 border-t border-white/8 flex justify-end gap-2"></div>
+    </div>
+  </div>
+
+  <!-- ──────────────── Toast stack (top-right) ──────────────── -->
+  <div id="toast-stack" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[90vw] pointer-events-none" aria-live="polite"></div>
+
+  <!-- ──────────────── Scripts ──────────────── -->
+  <script src="dashboard.js"></script>
+</body>
+</html>

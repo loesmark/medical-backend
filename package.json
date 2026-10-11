@@ -1,0 +1,45 @@
+{
+  "name": "medical-backend",
+  "version": "2.1.0",
+  "description": "Production-ready Node.js backend for the MediCare Flutter app. Express + better-sqlite3 + JWT RBAC + admin dashboard + secure DB backup.",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "setup:admin": "node scripts/create-admin.js",
+    "hash:passcode": "node scripts/hash-passcode.js",
+    "db:migrate": "node scripts/migrate-v3.js",
+    "postinstall": "echo 'If better-sqlite3 fails to load, run: npm rebuild better-sqlite3'"
+  },
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "keywords": [
+    "express",
+    "better-sqlite3",
+    "flutter",
+    "medical",
+    "admin-dashboard",
+    "jwt"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^13.0.0",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
+    "form-data": "^4.0.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "uuid": "^11.1.0"
+  }
+}

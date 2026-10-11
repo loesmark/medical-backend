@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediCare Admin — Sign In</title>
+  <meta name="description" content="MediCare Admin Dashboard — sign in to manage your medical backend." />
+
+  <!-- If already authenticated, hop straight into the dashboard. -->
+  <script>
+    try {
+      if (localStorage.getItem('medicare_admin_token')) {
+        window.location.replace('index.html');
+      }
+    } catch (_) { /* ignore storage errors */ }
+  </script>
+
+  <!-- Tailwind via CDN (no build step) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#0C899F', 50: '#E6F7FA', 100: '#C2EBF0', 500: '#0C899F',
+              600: '#0A7A8E', 700: '#086B7D', 800: '#065A69',
+              accent: '#00C2CB', accent2: '#33D4DB'
+            },
+            ink: {
+              bg: '#0D131F', surface: '#161C28', field: '#080E1A',
+              border: '#1F2937', text: '#E5E9F0', muted: '#8B97A8',
+              faint: '#5A6678'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'Inter', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          keyframes: {
+            'fade-in':       { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            'scale-in':      { '0%': { transform: 'scale(0.96)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
+            'pulse-soft':    { '0%,100%': { opacity: '0.85' }, '50%': { opacity: '1' } },
+            shimmer:         { '100%': { transform: 'translateX(100%)' } }
+          },
+          animation: {
+            'fade-in': 'fade-in 0.25s ease-out',
+            'scale-in': 'scale-in 0.25s ease-out',
+            'pulse-soft': 'pulse-soft 2.4s ease-in-out infinite',
+            shimmer: 'shimmer 1.6s infinite'
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body class="bg-ink-bg text-ink-text min-h-screen antialiased">
+
+  <!-- Ambient gradient background -->
+  <div class="fixed inset-0 -z-10 bg-ink-bg" aria-hidden="true">
+    <div class="absolute -top-32 -left-24 w-[480px] h-[480px] rounded-full bg-brand/20 blur-[120px]"></div>
+    <div class="absolute top-1/3 -right-32 w-[420px] h-[420px] rounded-full bg-brand-accent/10 blur-[110px]"></div>
+    <div class="absolute bottom-0 left-1/3 w-[360px] h-[360px] rounded-full bg-brand-accent/5 blur-[90px]"></div>
+  </div>
+
+  <main class="min-h-screen flex flex-col items-center justify-center px-4 py-10">
+
+    <!-- Card -->
+    <section class="w-full max-w-md bg-ink-surface border border-white/8 rounded-2xl shadow-2xl shadow-black/40 p-8 animate-scale-in">
+
+      <!-- Brand -->
+      <div class="flex flex-col items-center text-center mb-8">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand to-brand-accent flex items-center justify-center shadow-lg shadow-brand/30 mb-4">
+          <!-- heart + pulse icon -->
+          <svg class="w-8 h-8 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" />
+            <path d="M3.5 9h3l1.5-3 3 6 1.5-3h3.5" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight text-white">MediCare</h1>
+        <p class="mt-1 text-sm text-ink-muted">Admin Dashboard</p>
+      </div>
+
+      <h2 class="text-base font-semibold text-white text-center">Sign in to manage your medical backend</h2>
+
+      <!-- Form -->
+      <form id="login-form" class="mt-6 space-y-4" novalidate autocomplete="on">
+        <!-- Phone -->
+        <div>
+          <label for="login-phone" class="block text-xs font-medium text-ink-muted mb-1.5">Phone number</label>
+          <input
+            id="login-phone"
+            name="phone_number"
+            type="tel"
+            inputmode="tel"
+            autocomplete="username"
+            required
+            placeholder="01xxxxxxxxx"
+            class="w-full px-3.5 py-2.5 bg-ink-field border border-white/10 rounded-lg text-sm text-white placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+          />
+        </div>
+
+        <!-- Password + show/hide -->
+        <div>
+          <label for="login-password" class="block text-xs font-medium text-ink-muted mb-1.5">Password</label>
+          <div class="relative">
+            <input
+              id="login-password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="••••••••"
+              class="w-full px-3.5 py-2.5 pr-11 bg-ink-field border border-white/10 rounded-lg text-sm text-white placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+            />
+            <button
+              type="button"
+              id="toggle-pw"
+              aria-label="Show password"
+              aria-pressed="false"
+              class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-ink-muted hover:text-white hover:bg-white/5 rounded-md transition focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              <!-- eye -->
+              <svg id="pw-eye-on" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <!-- eye-off -->
+              <svg id="pw-eye-off" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                <line x1="2" y1="2" x2="22" y2="22"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Error text -->
+        <p id="login-error" class="text-xs text-rose-400 hidden" role="alert"></p>
+
+        <!-- Submit -->
+        <button
+          id="login-submit"
+          type="submit"
+          class="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-600 text-white font-semibold text-sm py-2.5 rounded-lg transition shadow-lg shadow-brand/20 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-ink-surface disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <span id="login-submit-label">Sign In</span>
+          <!-- spinner -->
+          <svg id="login-spinner" class="w-4 h-4 hidden animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+        </button>
+      </form>
+
+      <!-- Backend status pill -->
+      <div class="mt-6 flex justify-center">
+        <div id="backend-pill" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink-field border border-white/10 text-xs text-ink-muted">
+          <span id="backend-dot" class="w-2 h-2 rounded-full bg-ink-faint animate-pulse-soft"></span>
+          <span id="backend-text">Checking backend…</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Toast stack (login page local) -->
+    <div id="toast-stack" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 max-w-[90vw] pointer-events-none" aria-live="polite"></div>
+
+    <p class="mt-6 text-xs text-ink-faint">© MediCare Admin · v3</p>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const TOKEN_KEY = 'medicare_admin_token';
+      const USER_KEY = 'medicare_admin_user';
+      const $ = (id) => document.getElementById(id);
+
+      /* ─── Toast ──────────────────────────────────────────── */
+      function toast(message, type) {
+        const stack = $('toast-stack');
+        if (!stack) return;
+        const t = document.createElement('div');
+        t.className = 'toast pointer-events-auto toast-' + (type || 'info');
+        t.setAttribute('role', 'alert');
+        t.innerHTML =
+          '<div class="flex items-start gap-2">' +
+            '<span class="toast-icon">' + (type === 'success' ? '✓' : type === 'error' ? '✕' : '•') + '</span>' +
+            '<div class="toast-body">' + escapeHtml(message) + '</div>' +
+            '<button class="toast-close" aria-label="Dismiss">×</button>' +
+          '</div>';
+        stack.appendChild(t);
+        const close = () => { t.classList.add('leaving'); setTimeout(() => t.remove(), 250); };
+        t.querySelector('.toast-close').addEventListener('click', close);
+        setTimeout(close, 4000);
+      }
+
+      function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      /* ─── Backend status pill (pings /health) ─────────────── */
+      async function pingBackend() {
+        const dot = $('backend-dot');
+        const txt = $('backend-text');
+        try {
+          const ctrl = new AbortController();
+          const to = setTimeout(() => ctrl.abort(), 4000);
+          const res = await fetch('/health', { signal: ctrl.signal, credentials: 'same-origin' });
+          clearTimeout(to);
+          if (res.ok) {
+            dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+            txt.textContent = 'Backend online';
+            txt.className = 'text-emerald-300';
+          } else {
+            dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+            txt.textContent = 'Backend responded ' + res.status;
+          }
+        } catch (_) {
+          dot.className = 'w-2 h-2 rounded-full bg-rose-400';
+          txt.textContent = 'Backend unreachable';
+        }
+      }
+
+      /* ─── Password show/hide ──────────────────────────────── */
+      const pwInput = $('login-password');
+      const eyeOn = $('pw-eye-on');
+      const eyeOff = $('pw-eye-off');
+      const toggleBtn = $('toggle-pw');
+      toggleBtn.addEventListener('click', () => {
+        const isPw = pwInput.type === 'password';
+        pwInput.type = isPw ? 'text' : 'password';
+        eyeOn.classList.toggle('hidden', isPw);
+        eyeOff.classList.toggle('hidden', !isPw);
+        toggleBtn.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
+        toggleBtn.setAttribute('aria-pressed', String(isPw));
+      });
+
+      /* ─── Submit ───────────────────────────────────────────── */
+      const form = $('login-form');
+      const errorBox = $('login-error');
+      const submitBtn = $('login-submit');
+      const submitLabel = $('login-submit-label');
+      const spinner = $('login-spinner');
+
+      function setSubmitting(on, errMsg) {
+        submitBtn.disabled = on;
+        spinner.classList.toggle('hidden', !on);
+        submitLabel.textContent = on ? 'Signing in…' : 'Sign In';
+        if (errMsg) {
+          errorBox.textContent = errMsg;
+          errorBox.classList.remove('hidden');
+        } else {
+          errorBox.textContent = '';
+          errorBox.classList.add('hidden');
+        }
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+
+        const phone_number = $('login-phone').value.trim();
+        const password = pwInput.value;
+
+        if (!phone_number || !password) {
+          setSubmitting(false, 'Please enter your phone number and password.');
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/v1/auth/doctor-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ phone_number, password })
+          });
+          const text = await res.text();
+          let body = null;
+          if (text) {
+            try { body = JSON.parse(text); } catch (_) { body = null; }
+          }
+          if (!res.ok || (body && body.success === false)) {
+            const msg = (body && body.error && body.error.message) || ('Login failed (HTTP ' + res.status + ')');
+            setSubmitting(false, msg);
+            toast(msg, 'error');
+            return;
+          }
+          // Success
+          const data = (body && body.data) || {};
+          if (!data.token) {
+            setSubmitting(false, 'Server did not return a token.');
+            toast('Server did not return a token.', 'error');
+            return;
+          }
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
+          toast('Welcome back, Doctor.', 'success');
+          // Briefly delay so the toast is visible.
+          setTimeout(() => { window.location.href = 'index.html'; }, 250);
+        } catch (err) {
+          const msg = (err && err.message) || 'Network error. Check the backend is running.';
+          setSubmitting(false, msg);
+          toast(msg, 'error');
+        }
+      });
+
+      /* ─── Init ─────────────────────────────────────────────── */
+      pingBackend();
+      // Focus phone input
+      $('login-phone').focus();
+    })();
+  </script>
+</body>
+</html>

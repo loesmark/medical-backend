@@ -1,0 +1,37 @@
+# ───────────────────────────────────────────────
+# Fly.io config — free-tier friendly with a persistent volume
+# Deploy:  fly deploy --app your-app-name
+# ───────────────────────────────────────────────
+app = "your-app-name"
+primary_region = "iad"  # change to your nearest region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4000"
+  HOST = "0.0.0.0"
+  DB_PATH = "/app/data/medical.db"
+  # Fly secrets (set with `fly secrets set`): JWT_SECRET, ADMIN_BACKUP_PASSCODE_HASH, etc.
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = true   # free-tier: stop when idle
+  auto_start_machines = true  # wake on first request
+  min_machines_running = 0
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+# Persistent 1GB volume so the SQLite DB survives redeploy/stop
+[[mounts]]
+  source = "medical_data"
+  destination = "/app/data"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
