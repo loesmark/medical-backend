@@ -63,7 +63,7 @@ function createApp() {
   // Trust the Caddy gateway (1 hop) so req.ip and rate-limit keying use the
   // real client IP from X-Forwarded-For instead of the proxy's IP.
   // Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
-  app.set('trust proxy', 1);
+  app.set('trust proxy', true);
 
   if (config.isDev) {
     app.use(morgan('dev'));
